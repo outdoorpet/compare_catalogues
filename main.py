@@ -4,11 +4,56 @@ import qdarkstyle
 import pyqtgraph as pg
 from obspy.clients.fdsn.client import Client
 from obspy.core import UTCDateTime
+from obspy.geodetics import degrees2kilometers
 import sys
 import pandas as pd
 import numpy as np
 from DateAxisItem import DateAxisItem
+import math
 
+
+# class PandasModel(QtCore.QAbstractTableModel):
+#     """
+#     Class to populate a table view with a pandas dataframe
+#     """
+#     def __init__(self, data, parent=None):
+#         QtCore.QAbstractTableModel.__init__(self, parent)
+#         self._data = data
+#
+#     def rowCount(self, parent=None):
+#         return len(self._data.values)
+#
+#     def columnCount(self, parent=None):
+#         return self._data.columns.size
+#
+#     def data(self, index, role=QtCore.Qt.DisplayRole):
+#         if index.isValid():
+#             if role == QtCore.Qt.DisplayRole:
+#                 return str(self._data.values[index.row()][index.column()])
+#         return None
+#
+#     def sort(self, columnId, order=QtCore.Qt.AscendingOrder):
+#         """sort the model column
+#
+#         After sorting the data in ascending or descending order, a signal
+#         `layoutChanged` is emitted.
+#
+#         Args:
+#             columnId (int): columnIndex
+#             order (Qt::SortOrder, optional): descending(1) or ascending(0). defaults to Qt.AscendingOrder
+#
+#         """
+#         self.layoutAboutToBeChanged.emit()
+#         self.sortingAboutToStart.emit()
+#         column = self._dataFrame.columns[columnId]
+#         self._data.sort(column, ascending=not bool(order), inplace=True)
+#         self.layoutChanged.emit()
+#         self.sortingFinished.emit()
+#
+#         # def headerData(self, col, orientation, role):
+#     #     if orientation == QtCore.Qt.Horizontal and role == QtCore.Qt.DisplayRole:
+#     #         return self._data.columns[col]
+#     #     return None
 
 class PandasModel(QtCore.QAbstractTableModel):
     """
@@ -16,23 +61,29 @@ class PandasModel(QtCore.QAbstractTableModel):
     """
     def __init__(self, data, parent=None):
         QtCore.QAbstractTableModel.__init__(self, parent)
-        self._data = data
+        self._data = np.array(data.values)
+        self._cols = data.columns
+        self.r, self.c = np.shape(self._data)
 
     def rowCount(self, parent=None):
-        return len(self._data.values)
+        return self.r
 
     def columnCount(self, parent=None):
-        return self._data.columns.size
+        return self.c
 
     def data(self, index, role=QtCore.Qt.DisplayRole):
         if index.isValid():
             if role == QtCore.Qt.DisplayRole:
-                return str(self._data.values[index.row()][index.column()])
+                return self._data[index.row(),index.column()]
         return None
 
-    def headerData(self, col, orientation, role):
-        if orientation == QtCore.Qt.Horizontal and role == QtCore.Qt.DisplayRole:
-            return self._data.columns[col]
+
+    def headerData(self, p_int, orientation, role):
+        if role == QtCore.Qt.DisplayRole:
+            if orientation == QtCore.Qt.Horizontal:
+                return self._cols[p_int]
+            elif orientation == QtCore.Qt.Vertical:
+                return p_int
         return None
 
 
@@ -53,6 +104,11 @@ class TableDialog(QtGui.QDialog):
         self.oth_event_table_view = QtGui.QTableView()
         self.matched_event_table_view = QtGui.QTableView()
 
+        # Accessor dictionary to get data frame from table view widget
+        self.table_accessor = {self.isc_event_table_view: self.isc_df,
+                               self.oth_event_table_view: self.oth_df,
+                               self.matched_event_table_view: self.matched_df}
+
         self.isc_event_table_view.setSelectionBehavior(QtGui.QAbstractItemView.SelectRows)
         self.oth_event_table_view.setSelectionBehavior(QtGui.QAbstractItemView.SelectRows)
         self.matched_event_table_view.setSelectionBehavior(QtGui.QAbstractItemView.SelectRows)
@@ -67,12 +123,60 @@ class TableDialog(QtGui.QDialog):
         self.oth_model = PandasModel(self.oth_df)
         self.matched_model = PandasModel(self.matched_df)
 
+
+        # self.isc_model.setHorizontalHeaderLabels( ['isc_ind', 'Event ID', 'qtime', 'Lat (dd)', 'Lon  (dd)', 'Depth (km)', 'Mag'] )
+        # self.oth_model.setHorizontalHeaderLabels( ['oth_ind', 'Event ID', 'qtime', 'Lat (dd)', 'Lon  (dd)', 'Depth (km)', 'Mag'] )
+        # self.matched_model.setHorizontalHeaderLabels( ['oth_ind', 'Event ID', 'qtime', 'Lat (dd)', 'Lon (dd)',
+        #                                                'Depth (km)', 'Mag', 'isc_ind', 'Event ID Match', 'qtime_match',
+        #                                                'Lat Match (dd)', 'Lon Match (dd)', 'Depth Match (km)',
+        #                                                'Mag Match', 'Mag Diff', 'Depth Diff (km)',
+        #                                                'Distance Diff (km)'] )
+        #
+        # isc_hidden_columns = [0,2]
+        # matched_hidden_columns = [0,2,7,9]
+        # for col in isc_hidden_columns:
+        #     self.isc_event_table_view.setColumnHidden(col, True)
+        #     self.oth_event_table_view.setColumnHidden(col, True)
+        # for col in matched_hidden_columns:
+        #     self.matched_event_table_view.setColumnHidden(col, True)
+        #
+        # self.isc_event_table_view.setSortingEnabled(True)
+        # self.oth_event_table_view.setSortingEnabled(True)
+        # self.matched_event_table_view.setSortingEnabled(True)
+        #
         self.isc_event_table_view.setModel(self.isc_model)
         self.oth_event_table_view.setModel(self.oth_model)
         self.matched_event_table_view.setModel(self.matched_model)
 
+        # self.header = self.isc_event_table_view.horizontalHeader()
+        # self.header.sectionClicked.connect(self.headerClicked)
+
+
         self.setWindowTitle('Tables')
         self.show()
+
+    # def headerClicked(self, logicalIndex):
+    #     focus_widget = QtGui.QApplication.focusWidget()
+    #     table_df = self.table_accessor[focus_widget]
+    #
+    #     self.order = self.header.sortIndicatorOrder()
+    #     table_df.sort(table_df.columns[logicalIndex],
+    #                         ascending=self.order, inplace=True)
+    #     self.model = PandasModel(table_df)
+    #     focus_widget.setModel(self.model)
+    #     focus_widget.update()
+
+        # table_df = self.table_accessor[focus_widget]
+        #
+        # if focus_widget == self.isc_event_table_view:
+        #
+        #     self.order = self.header.sortIndicatorOrder()
+        #     self.isc_df.sort(self.isc_df.columns[logicalIndex],
+        #                     ascending=self.order, inplace=True)
+        #     self.model = PandasModel(self.isc_df)
+        #     self.isc_event_table_view.setModel(self.model)
+        #     self.isc_event_table_view.update()
+
 
 
 class MainWindow(QtGui.QWidget):
@@ -81,6 +185,7 @@ class MainWindow(QtGui.QWidget):
         self.setupUi()
         self.show()
         self.raise_()
+        QtGui.QApplication.instance().focusChanged.connect(self.changed_widget_focus)
 
         self.read_events()
 
@@ -128,6 +233,10 @@ class MainWindow(QtGui.QWidget):
     def onMap_marker_selected(self, lat, lng, event_id, df_id, row_index):
         self.table_view_highlight(self.tbl_view_dict[str(df_id)], row_index)
 
+    def changed_widget_focus(self):
+        if not QtGui.QApplication.focusWidget() == self.graph_view:
+            self.scatter_point_deselect()
+
     def panMap(self, lng, lat):
         self.view.page().mainFrame().evaluateJavaScript('map.panTo(L.latLng({}, {}));'.format(lat, lng))
         self.view.page().mainFrame().evaluateJavaScript('map.setZoom({});'.format(10))
@@ -159,8 +268,15 @@ class MainWindow(QtGui.QWidget):
         self.unmatched_mag_scatter_plot = pg.ScatterPlotItem(pxMode=True)
         self.lastClicked = []
         self.unmatched_mag_scatter_plot.sigClicked.connect(self.scatter_point_clicked)
-        self.unmatched_mag_scatter_plot.addPoints(self.isc_not_matched_df['qtime'], self.isc_not_matched_df['mag'], size=8, brush='b')
+        self.unmatched_mag_scatter_plot.addPoints(self.oth_not_matched_df['qtime'], self.oth_not_matched_df['mag'], size=8, brush='c')
         self.plot4.addItem(self.unmatched_mag_scatter_plot)
+
+    def scatter_point_deselect(self):
+        try:
+            for p in self.lastClicked:
+                p.resetPen()
+        except AttributeError:
+            pass
 
     def scatter_point_clicked(self, plot, points):
         for p in self.lastClicked:
@@ -176,8 +292,8 @@ class MainWindow(QtGui.QWidget):
             self.select_entry = self.matched_df.loc[self.matched_df['qtime'] == points[0].pos()[0]]
             self.table_view_highlight(self.tbld.matched_event_table_view, self.select_entry.index.tolist()[0])
         elif plot == self.unmatched_mag_scatter_plot:
-            self.select_entry = self.isc_not_matched_df.loc[self.isc_not_matched_df['qtime'] == points[0].pos()[0]]
-            self.table_view_highlight(self.tbld.isc_event_table_view, self.select_entry.index.tolist()[0])
+            self.select_entry = self.oth_not_matched_df.loc[self.oth_not_matched_df['qtime'] == points[0].pos()[0]]
+            self.table_view_highlight(self.tbld.oth_event_table_view, self.select_entry.index.tolist()[0])
 
     def plot_events(self):
         #
@@ -222,7 +338,7 @@ class MainWindow(QtGui.QWidget):
         for row_index, row in self.oth_not_matched_df.iterrows():
             js_call = "addEvent('{event_id}', '{df_id}', {row_index}, {latitude}, {longitude}, '{a_color}', '{p_color}');" \
                 .format(event_id=row['event_id'], df_id="oth", row_index=int(row_index), latitude=row['lat'], longitude=row['lon'], a_color="Red",
-                        p_color="Orange")
+                        p_color="Cyan")
             self.view.page().mainFrame().evaluateJavaScript(js_call)
 
 
@@ -237,9 +353,18 @@ class MainWindow(QtGui.QWidget):
                               "oth": self.tbld.oth_event_table_view,
                               "matched": self.tbld.matched_event_table_view}
 
+        # Create a new table_accessor dictionary for this class
+        self.table_accessor = {self.tbld.isc_event_table_view: [self.isc_df, range(0, len(self.isc_df))],
+                               self.tbld.oth_event_table_view: [self.oth_df, range(0, len(self.oth_df))],
+                               self.tbld.matched_event_table_view: [self.matched_df, range(0, len(self.matched_df))]}
+
         self.tbld.isc_event_table_view.clicked.connect(self.table_view_clicked)
         self.tbld.oth_event_table_view.clicked.connect(self.table_view_clicked)
         self.tbld.matched_event_table_view.clicked.connect(self.table_view_clicked)
+
+        self.tbld.isc_event_table_view.horizontalHeader().sectionClicked.connect(self.headerClicked)
+        self.tbld.oth_event_table_view.horizontalHeader().sectionClicked.connect(self.headerClicked)
+        self.tbld.matched_event_table_view.horizontalHeader().sectionClicked.connect(self.headerClicked)
 
         # Double click and zoom is making markers dissapper when clicing on them
         # self.tbld.isc_event_table_view.doubleClicked.connect(self.table_view_dblclicked)
@@ -252,38 +377,71 @@ class MainWindow(QtGui.QWidget):
     def table_view_highlight(self, focus_widget, row_index):
 
         if focus_widget == self.tbld.matched_event_table_view:
-            self.tbld.matched_event_table_view.selectRow(row_index)
-
-            # get the row of the the ISC and oth matched quake
-            isc_index = int(self.matched_df.loc[row_index, 'isc_ind'])
-            oth_index = int(self.matched_df.loc[row_index, 'oth_ind'])
-            self.tbld.isc_event_table_view.selectRow(isc_index)
-            self.tbld.oth_event_table_view.selectRow(oth_index)
             self.selected_row = self.matched_df.loc[row_index]
+
+            # get the index of the the ISC and oth matched quake
+            isc_index = self.selected_row['isc_ind']
+            oth_index = self.selected_row['oth_ind']
+
+            # Find the row_numbers of these two indexes
+            matched_row_number = self.table_accessor[self.tbld.matched_event_table_view][1].index(row_index)
+            isc_row_number = self.table_accessor[self.tbld.isc_event_table_view][1].index(isc_index)
+            oth_row_number = self.table_accessor[self.tbld.oth_event_table_view][1].index(oth_index)
+
+            # Highlight/Select the  rows in the table
+            self.tbld.matched_event_table_view.selectRow(matched_row_number)
+            self.tbld.isc_event_table_view.selectRow(isc_row_number)
+            self.tbld.oth_event_table_view.selectRow(oth_row_number)
 
             # Highlight the marker on the map
             js_call = "highlightEvent('{event_id}');".format(event_id=self.selected_row['event_id'])
             self.view.page().mainFrame().evaluateJavaScript(js_call)
 
         elif focus_widget == self.tbld.isc_event_table_view:
-            self.tbld.isc_event_table_view.selectRow(row_index)
             self.tbld.oth_event_table_view.clearSelection()
             self.tbld.matched_event_table_view.clearSelection()
+
             self.selected_row = self.isc_df.loc[row_index]
+
+            # Find the row_number of this index
+            isc_row_number = self.table_accessor[focus_widget][1].index(row_index)
+            focus_widget.selectRow(isc_row_number)
 
             # Highlight the marker on the map
             js_call = "highlightEvent('{event_id}');".format(event_id=self.selected_row['event_id'])
             self.view.page().mainFrame().evaluateJavaScript(js_call)
 
         elif focus_widget == self.tbld.oth_event_table_view:
-            self.tbld.oth_event_table_view.selectRow(row_index)
             self.tbld.isc_event_table_view.clearSelection()
             self.tbld.matched_event_table_view.clearSelection()
+
             self.selected_row = self.oth_df.loc[row_index]
+
+            # Find the row_number of this index
+            oth_row_number = self.table_accessor[focus_widget][1].index(row_index)
+            focus_widget.selectRow(oth_row_number)
+
 
             # Highlight the marker on the map
             js_call = "highlightEvent('{event_id}');".format(event_id=self.selected_row['event_id'])
             self.view.page().mainFrame().evaluateJavaScript(js_call)
+
+
+    def headerClicked(self, logicalIndex):
+        focus_widget = QtGui.QApplication.focusWidget()
+        table_df = self.table_accessor[focus_widget][0]
+
+        header = focus_widget.horizontalHeader()
+
+        self.order = header.sortIndicatorOrder()
+        table_df.sort_values(by=table_df.columns[logicalIndex],
+                            ascending=self.order, inplace=True)
+
+        self.table_accessor[focus_widget][1] = table_df.index.tolist()
+
+        self.model = PandasModel(table_df)
+        focus_widget.setModel(self.model)
+        focus_widget.update()
 
     def table_view_dblclicked(self):
         self.table_view_clicked()
@@ -291,9 +449,29 @@ class MainWindow(QtGui.QWidget):
 
     def table_view_clicked(self):
         focus_widget = QtGui.QApplication.focusWidget()
-        index = focus_widget.selectionModel().selectedRows()[0]
+        row_number = focus_widget.selectionModel().selectedRows()[0].row()
 
-        self.table_view_highlight(focus_widget, index.row())
+        # Highlight/Select the current row in the table
+        # focus_widget.selectRow(row_number)
+
+        # print(row_number)
+
+        # print(self.table_accessor[focus_widget][1])
+        # Get the internal row_index of selected row
+        row_index = self.table_accessor[focus_widget][1][row_number]
+
+        # print(row_index)
+
+        self.table_view_highlight(focus_widget, row_index)
+
+        # print(row_index)
+        # print(self.table_accessor[focus_widget][1])
+        # print(self.table_accessor[focus_widget][0].loc[row_index])
+        # internal_ind = self.table_accessor[focus_widget].loc[row_index, 'ind']
+        # print(internal_ind)
+
+
+        #self.table_view_highlight(focus_widget, index.row())
 
     def read_events(self):
         isc_catalogue = Client("IRIS")
@@ -308,7 +486,7 @@ class MainWindow(QtGui.QWidget):
         self.oth_cat = oth_catalogue.get_events(starttime=t_start, endtime=t_end)
 
         # create empty data frame
-        self.isc_df = pd.DataFrame(data=None, columns=['oth_ind', 'event_id', 'qtime', 'lat', 'lon', 'depth', 'mag'])
+        self.isc_df = pd.DataFrame(data=None, columns=['isc_ind', 'event_id', 'qtime', 'lat', 'lon', 'depth', 'mag'])
         self.oth_df = pd.DataFrame(data=None, columns=['oth_ind', 'event_id', 'qtime', 'lat', 'lon', 'depth', 'mag'])
 
         # iterate through the events in oth cat
@@ -346,18 +524,21 @@ class MainWindow(QtGui.QWidget):
             # NaNs are treated as small
             smallest_temp = temp.nsmallest(1, columns=['lat', 'lon', 'qtime'])
 
+            distance_diff = degrees2kilometers(math.sqrt(abs(smallest_temp['lat'].item())**2 +
+                                                         abs(smallest_temp['lon'].item())**2))
+
             isc_index = list(smallest_temp.index)[0]
 
             if smallest_temp['qtime'].item() <= 15 and \
                     (abs(smallest_temp['lon'].item()) <= 1 or np.isnan(smallest_temp['lon'].item())) and \
                     (abs(smallest_temp['lat'].item()) <= 1 or np.isnan(smallest_temp['lat'].item())):
-                ret_s = pd.Series([self.isc_df.loc[isc_index]['oth_ind'].item(), self.isc_df.loc[isc_index]['event_id'],
+                ret_s = pd.Series([self.isc_df.loc[isc_index]['isc_ind'].item(), self.isc_df.loc[isc_index]['event_id'],
                                    self.isc_df.loc[isc_index]['qtime'].item(), self.isc_df.loc[isc_index]['lat'].item(),
                                    self.isc_df.loc[isc_index]['lon'].item(),
                                    self.isc_df.loc[isc_index]['depth'].item(), self.isc_df.loc[isc_index]['mag'].item(),
-                                   smallest_temp['mag'].item(), smallest_temp['depth'].item()],
+                                   smallest_temp['mag'].item(), smallest_temp['depth'].item(), distance_diff],
                                   index=['isc_ind', 'event_id_match', 'qtime_match', 'lat_match', 'lon_match',
-                                         'depth_match', 'mag_match', 'mag_diff', 'depth_diff'])
+                                         'depth_match', 'mag_match', 'mag_diff', 'depth_diff', 'dist_diff'])
                 return (ret_s)
 
         # Drop the event_id column (strings) from the data frame to apply vectorised function
@@ -371,7 +552,7 @@ class MainWindow(QtGui.QWidget):
         self.matched_df.reset_index(drop=True, inplace=True)
 
         # find isc events not matched and oth events not matched
-        self.isc_not_matched_df = self.isc_df[~self.isc_df['oth_ind'].isin(self.matched_df['isc_ind'])]
+        self.isc_not_matched_df = self.isc_df[~self.isc_df['isc_ind'].isin(self.matched_df['isc_ind'])]
         self.oth_not_matched_df = self.oth_df[~self.oth_df['oth_ind'].isin(self.matched_df['oth_ind'])]
 
 
@@ -384,4 +565,5 @@ if __name__ == '__main__':
     app = QtGui.QApplication([])
     app.setStyleSheet(qdarkstyle.load_stylesheet(pyside=False))
     w = MainWindow()
+    w.raise_()
     app.exec_()
