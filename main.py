@@ -493,13 +493,14 @@ class MainWindow(QtGui.QWidget):
         isc_catalogue = Client("IRIS")
         oth_catalogue = Client('http://sismo.iag.usp.br')
 
-        t_start = UTCDateTime('2016-11-17T00:00:00')
-        t_end = UTCDateTime('2016-11-18T00:00:00')
+        t_start = UTCDateTime('2016-12-01T00:00:00')
+        t_end = UTCDateTime('2016-12-02T00:00:00')
 
         print('\nRequesting Earthquake Catalogues from Remote Servers.....')
 
         self.isc_cat = isc_catalogue.get_events(starttime=t_start, endtime=t_end)
         self.oth_cat = oth_catalogue.get_events(starttime=t_start, endtime=t_end)
+
 
         # create empty data frame
         self.isc_df = pd.DataFrame(data=None, columns=['isc_ind', 'event_id', 'qtime', 'lat', 'lon', 'depth', 'mag'])
@@ -530,7 +531,6 @@ class MainWindow(QtGui.QWidget):
                                    origin_info.latitude, origin_info.longitude,
                                    origin_info.depth, mag_info.mag]
 
-
         # =====================Finding matching events =======================
 
         print('\nFinding Matching Events.....')
@@ -555,17 +555,26 @@ class MainWindow(QtGui.QWidget):
                                    smallest_temp['qtime'], distance_diff, smallest_temp['depth'], smallest_temp['mag']],
                                   index=['isc_ind', 'event_id_match', 'qtime_match', 'lat_match', 'lon_match',
                                          'depth_match', 'mag_match', 'qtime_diff', 'dist_diff', 'depth_diff', 'mag_diff'])
-                return (ret_s)
+                return ret_s
+            else:
+                ret_s = pd.Series([None, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+                                  index=['isc_ind', 'event_id_match', 'qtime_match', 'lat_match', 'lon_match',
+                                         'depth_match', 'mag_match', 'qtime_diff', 'dist_diff', 'depth_diff',
+                                         'mag_diff'])
+            return ret_s
 
         # Drop the event_id column (strings) from the data frame to apply vectorised function
         self.oth_df_drop = self.oth_df.drop('event_id', axis=1)
         self.isc_df_drop = self.isc_df.drop('event_id', axis=1)
         self.matched_df = pd.concat((self.oth_df, self.oth_df_drop.apply(get_isc_match, axis=1)), axis=1)
 
+
         #drop a row from the matched df if isc_ind in matched df is NaN
         # (I.e. there was no matching earthquake in isc cat)
         self.matched_df.dropna(subset=['isc_ind'], inplace=True)
         self.matched_df.reset_index(drop=True, inplace=True)
+
+        print(self.matched_df)
 
         # find isc events not matched and oth events not matched
         self.isc_not_matched_df = self.isc_df[~self.isc_df['isc_ind'].isin(self.matched_df['isc_ind'])]
