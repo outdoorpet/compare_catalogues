@@ -6,7 +6,6 @@ var matched_group = L.layerGroup();
 var isc_group = L.layerGroup();
 var oth_group = L.layerGroup();
 
-
 var events = {};
 
 function addEvent(event_id, df_id, row_index, latitude, longitude, a_color, p_color) {
@@ -15,6 +14,7 @@ function addEvent(event_id, df_id, row_index, latitude, longitude, a_color, p_co
             radius: 10,
             color: "Black"
     }).on("click", circleClick);
+
     marker.status = "--";
 
     marker.myCustomEventID = event_id;
@@ -85,6 +85,22 @@ function highlightEvent(event_id) {
     setAllInactive();
     var value = events[event_id];
     setMarkerActive(value)
+}
+
+function resetMarkerSize() {
+    _.forEach(events, function(value, key) {
+        value.marker.setRadius(10);
+    });
+}
+
+function arrange_marker_by_depth(sizes) {
+    var i = 0;
+    _.forEach(events, function(value, key) {
+        if (value.marker.myCustomDfID == "matched") {
+            value.marker.setRadius(sizes[i]);
+            i++;
+        }
+    });
 }
 
 
