@@ -52,7 +52,7 @@ function createOverlay() {
 
 function setMarkerActive(value) {
     if (value.marker.status != "active") {
-        value.marker.setStyle({color: value.active_color, opacity: 0.7, fillOpacity: 0.4});
+        value.marker.setStyle({color: value.active_color, opacity: 0.8, fillOpacity: 0.5});
         value.marker.bringToFront()
         value.marker.status = "active";
     }
@@ -61,7 +61,7 @@ function setMarkerActive(value) {
 
 function setMarkerInactive(value) {
     if (value.marker.status != "passive") {
-        value.marker.setStyle({color: value.passive_color});
+        value.marker.setStyle({color: value.passive_color, opacity: 0.6, fillOpacity: 0.3});
         value.marker.status = "passive";
     }
 }
