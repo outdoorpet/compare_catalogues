@@ -513,11 +513,17 @@ class MainWindow(QtGui.QWidget):
 
             # Get quake origin info
             origin_info = event.preferred_origin() or event.origins[0]
-            mag_info = event.preferred_magnitude() or event.magnitudes[0]
+
+            try:
+                mag_info = event.preferred_magnitude() or event.magnitudes[0]
+                magnitude = mag_info.mag
+            except IndexError:
+                # No magnitude for event
+                magnitude = None
 
             self.oth_df.loc[_i] = [int(_i), str(event.resource_id.id), int(origin_info.time.timestamp),
                                    origin_info.latitude, origin_info.longitude,
-                                   origin_info.depth, mag_info.mag]
+                                   origin_info.depth, magnitude]
 
         print('\n')
         # iterate through the events in isc cat
@@ -526,10 +532,15 @@ class MainWindow(QtGui.QWidget):
             sys.stdout.flush()
             # Get quake origin info
             origin_info = event.preferred_origin() or event.origins[0]
-            mag_info = event.preferred_magnitude() or event.magnitudes[0]
+            try:
+                mag_info = event.preferred_magnitude() or event.magnitudes[0]
+                magnitude = mag_info.mag
+            except IndexError:
+                # No magnitude for event
+                magnitude = None
             self.isc_df.loc[_i] = [int(_i), str(event.resource_id.id), int(origin_info.time.timestamp),
                                    origin_info.latitude, origin_info.longitude,
-                                   origin_info.depth, mag_info.mag]
+                                   origin_info.depth, magnitude]
 
         # =====================Finding matching events =======================
 
@@ -573,8 +584,6 @@ class MainWindow(QtGui.QWidget):
         # (I.e. there was no matching earthquake in isc cat)
         self.matched_df.dropna(subset=['isc_ind'], inplace=True)
         self.matched_df.reset_index(drop=True, inplace=True)
-
-        print(self.matched_df)
 
         # find isc events not matched and oth events not matched
         self.isc_not_matched_df = self.isc_df[~self.isc_df['isc_ind'].isin(self.matched_df['isc_ind'])]
