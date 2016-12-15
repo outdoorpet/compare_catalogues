@@ -146,6 +146,8 @@ class MainWindow(QtGui.QWidget):
 
         self.get_catalogues()
 
+        self.setAttribute(QtCore.Qt.WA_DeleteOnClose)
+
     def setupUi(self):
 
         vbox = QtGui.QVBoxLayout()
@@ -238,6 +240,9 @@ class MainWindow(QtGui.QWidget):
                                    origin_info.latitude, origin_info.longitude,
                                    origin_info.depth, magnitude]
 
+        # Convert the depth field to Km from m
+        self.oth_df.loc[:, 'depth'] *= (1.0 / 1000)
+
         print('\n')
         # iterate through the events in isc cat
         for _i, event in enumerate(self.isc_cat):
@@ -254,6 +259,9 @@ class MainWindow(QtGui.QWidget):
             self.isc_df.loc[_i] = [int(_i), str(event.resource_id.id), int(origin_info.time.timestamp),
                                    origin_info.latitude, origin_info.longitude,
                                    origin_info.depth, magnitude]
+
+        # Convert the depth field to Km from m
+        self.isc_df.loc[:, 'depth'] *= (1.0 / 1000)
 
         # =====================Finding matching events =======================
 
