@@ -16,6 +16,7 @@ class PandasModel(QtCore.QAbstractTableModel):
     """
     Class to populate a table view with a pandas dataframe
     """
+
     def __init__(self, data, isc_nm=None, oth_nm=None, parent=None):
         QtCore.QAbstractTableModel.__init__(self, parent)
         self._data = np.array(data.values)
@@ -53,7 +54,7 @@ class PandasModel(QtCore.QAbstractTableModel):
 
         if index.isValid():
             if role == QtCore.Qt.DisplayRole:
-                return self._data[index.row(),index.column()]
+                return self._data[index.row(), index.column()]
             if role == QtCore.Qt.BackgroundRole:
                 if not self.isc_nm == None:
                     bool_in = index.row() in self.isc_nm
@@ -87,6 +88,10 @@ class PandasModel(QtCore.QAbstractTableModel):
 
 
 class TableDialog(QtGui.QDialog):
+    """
+    Class to create a separate child window to display the isc, local and matched Pandas arrays as 3 tables
+    """
+
     def __init__(self, parent=None, isc_df=None, oth_df=None, matched_df=None, isc_nm=None, oth_nm=None):
         super(TableDialog, self).__init__(parent)
 
@@ -129,6 +134,10 @@ class TableDialog(QtGui.QDialog):
 
 
 class MainWindow(QtGui.QWidget):
+    """
+    Main Window for compare_catalogues GUI
+    """
+
     def __init__(self):
         super(MainWindow, self).__init__()
         self.setupUi()
@@ -214,32 +223,38 @@ class MainWindow(QtGui.QWidget):
 
         matched_df_drop_mdna = self.matched_df.dropna(subset=['mag', 'depth'], inplace=False)
 
-        self.plot2 = self.graph_view.addPlot(0, 0, title="Magnitude Difference", axisItems={'bottom': DateAxisItem(orientation='bottom',
-                                                  utcOffset=0)})
-        self.plot3 = self.graph_view.addPlot(0, 1, title="Depth Difference", axisItems={'bottom': DateAxisItem(orientation='bottom',
-                                                  utcOffset=0)})
-        self.plot4 = self.graph_view.addPlot(0, 2, title="Magnitude of Unmatched Events", axisItems={'bottom': DateAxisItem(orientation='bottom',
-                                                  utcOffset=0)})
+        self.plot2 = self.graph_view.addPlot(0, 0, title="Magnitude Difference",
+                                             axisItems={'bottom': DateAxisItem(orientation='bottom',
+                                                                               utcOffset=0)})
+        self.plot3 = self.graph_view.addPlot(0, 1, title="Depth Difference",
+                                             axisItems={'bottom': DateAxisItem(orientation='bottom',
+                                                                               utcOffset=0)})
+        self.plot4 = self.graph_view.addPlot(0, 2, title="Magnitude of Unmatched Events",
+                                             axisItems={'bottom': DateAxisItem(orientation='bottom',
+                                                                               utcOffset=0)})
 
         matched_col = pg.mkColor('#008000')
         self.mag_diff_scatter_plot = pg.ScatterPlotItem(pxMode=True)
         self.lastClicked = []
         self.mag_diff_scatter_plot.sigClicked.connect(self.scatter_point_clicked)
-        self.mag_diff_scatter_plot.addPoints(matched_df_drop_mdna['qtime'], matched_df_drop_mdna['mag_diff'], size=9, brush=matched_col)
+        self.mag_diff_scatter_plot.addPoints(matched_df_drop_mdna['qtime'], matched_df_drop_mdna['mag_diff'], size=9,
+                                             brush=matched_col)
         self.plot2.addItem(self.mag_diff_scatter_plot)
 
         matched_col = pg.mkColor('#008000')
         self.depth_diff_scatter_plot = pg.ScatterPlotItem(pxMode=True)
         self.lastClicked = []
         self.depth_diff_scatter_plot.sigClicked.connect(self.scatter_point_clicked)
-        self.depth_diff_scatter_plot.addPoints(matched_df_drop_mdna['qtime'], matched_df_drop_mdna['depth_diff'], size=9, brush=matched_col)
+        self.depth_diff_scatter_plot.addPoints(matched_df_drop_mdna['qtime'], matched_df_drop_mdna['depth_diff'],
+                                               size=9, brush=matched_col)
         self.plot3.addItem(self.depth_diff_scatter_plot)
 
         unmatched_col = pg.mkColor('#FFA500')
         self.unmatched_mag_scatter_plot = pg.ScatterPlotItem(pxMode=True)
         self.lastClicked = []
         self.unmatched_mag_scatter_plot.sigClicked.connect(self.scatter_point_clicked)
-        self.unmatched_mag_scatter_plot.addPoints(self.oth_not_matched_df['qtime'], self.oth_not_matched_df['mag'], size=9, brush=unmatched_col)
+        self.unmatched_mag_scatter_plot.addPoints(self.oth_not_matched_df['qtime'], self.oth_not_matched_df['mag'],
+                                                  size=9, brush=unmatched_col)
         self.plot4.addItem(self.unmatched_mag_scatter_plot)
 
     def scatter_point_deselect(self):
@@ -297,25 +312,30 @@ class MainWindow(QtGui.QWidget):
 
         # Plot the matched events
         for row_index, row in self.matched_df.iterrows():
-            js_call = "addEvent('{event_id}', '{df_id}', {row_index}, {latitude}, {longitude}, '{a_color}', '{p_color}');" \
-                .format(event_id=row['event_id'], df_id="matched", row_index=int(row_index), latitude=row['lat'], longitude=row['lon'], a_color="Red",
+            js_call = "addEvent('{event_id}', '{df_id}', {row_index}, " \
+                      "{latitude}, {longitude}, '{a_color}', '{p_color}');" \
+                .format(event_id=row['event_id'], df_id="matched", row_index=int(row_index), latitude=row['lat'],
+                        longitude=row['lon'], a_color="Red",
                         p_color="#008000")
             self.view.page().mainFrame().evaluateJavaScript(js_call)
 
         # Plot ISC events (not matched)
         for row_index, row in self.isc_not_matched_df.iterrows():
-            js_call = "addEvent('{event_id}', '{df_id}', {row_index}, {latitude}, {longitude}, '{a_color}', '{p_color}');" \
-                .format(event_id=row['event_id'], df_id="isc", row_index=int(row_index), latitude=row['lat'], longitude=row['lon'], a_color="Red",
+            js_call = "addEvent('{event_id}', '{df_id}', {row_index}, " \
+                      "{latitude}, {longitude}, '{a_color}', '{p_color}');" \
+                .format(event_id=row['event_id'], df_id="isc", row_index=int(row_index), latitude=row['lat'],
+                        longitude=row['lon'], a_color="Red",
                         p_color="#4169E1")
             self.view.page().mainFrame().evaluateJavaScript(js_call)
 
         # Plot oth events (not matched)
         for row_index, row in self.oth_not_matched_df.iterrows():
-            js_call = "addEvent('{event_id}', '{df_id}', {row_index}, {latitude}, {longitude}, '{a_color}', '{p_color}');" \
-                .format(event_id=row['event_id'], df_id="oth", row_index=int(row_index), latitude=row['lat'], longitude=row['lon'], a_color="Red",
+            js_call = "addEvent('{event_id}', '{df_id}', {row_index}, " \
+                      "{latitude}, {longitude}, '{a_color}', '{p_color}');" \
+                .format(event_id=row['event_id'], df_id="oth", row_index=int(row_index), latitude=row['lat'],
+                        longitude=row['lon'], a_color="Red",
                         p_color="#FFA500")
             self.view.page().mainFrame().evaluateJavaScript(js_call)
-
 
         js_call = "createOverlay();"
         self.view.page().mainFrame().evaluateJavaScript(js_call)
@@ -345,12 +365,11 @@ class MainWindow(QtGui.QWidget):
         self.tbld.oth_event_table_view.horizontalHeader().sectionClicked.connect(self.headerClicked)
         self.tbld.matched_event_table_view.horizontalHeader().sectionClicked.connect(self.headerClicked)
 
-        # Double click and zoom is making markers dissapper when clicing on them
+        # Double click and zoom is making markers disappear when clicking on them
         # self.tbld.isc_event_table_view.doubleClicked.connect(self.table_view_dblclicked)
         # self.tbld.oth_event_table_view.doubleClicked.connect(self.table_view_dblclicked)
         # self.tbld.matched_event_table_view.doubleClicked.connect(self.table_view_dblclicked)
 
-        # plot on graph view
         self.update_graph()
 
     def table_view_highlight(self, focus_widget, row_index):
@@ -400,7 +419,6 @@ class MainWindow(QtGui.QWidget):
             oth_row_number = self.table_accessor[focus_widget][1].index(row_index)
             focus_widget.selectRow(oth_row_number)
 
-
             # Highlight the marker on the map
             js_call = "highlightEvent('{event_id}');".format(event_id=self.selected_row['event_id'])
             self.view.page().mainFrame().evaluateJavaScript(js_call)
@@ -425,13 +443,13 @@ class MainWindow(QtGui.QWidget):
             if not self.oth_not_matched_df.empty:
                 # first unmatched events in local catalogue
                 self.oth_not_matched_rn_list = find(self.table_accessor[self.tbld.oth_event_table_view][1],
-                                            self.oth_not_matched_df.loc[:, 'oth_ind'].tolist())
+                                                    self.oth_not_matched_df.loc[:, 'oth_ind'].tolist())
             else:
                 self.oth_not_matched_rn_list = None
             if not self.isc_not_matched_df.empty:
                 # now unmatched events in local catalogue
                 self.isc_not_matched_rn_list = find(self.table_accessor[self.tbld.isc_event_table_view][1],
-                                            self.isc_not_matched_df.loc[:, 'isc_ind'].tolist())
+                                                    self.isc_not_matched_df.loc[:, 'isc_ind'].tolist())
             else:
                 self.isc_not_matched_rn_list = None
 
@@ -445,7 +463,7 @@ class MainWindow(QtGui.QWidget):
 
         self.order = header.sortIndicatorOrder()
         table_df.sort_values(by=table_df.columns[logicalIndex],
-                            ascending=self.order, inplace=True)
+                             ascending=self.order, inplace=True)
 
         self.table_accessor[focus_widget][1] = table_df.index.tolist()
 
@@ -473,7 +491,7 @@ class MainWindow(QtGui.QWidget):
         self.table_view_highlight(focus_widget, row_index)
 
     def read_events(self):
-        isc_catalogue = Client("IRIS")
+        isc_catalogue = Client("http://isc-mirror.iris.washington.edu")
         oth_catalogue = Client('http://sismo.iag.usp.br')
 
         t_start = UTCDateTime('2016-12-01T00:00:00')
@@ -483,7 +501,6 @@ class MainWindow(QtGui.QWidget):
 
         self.isc_cat = isc_catalogue.get_events(starttime=t_start, endtime=t_end)
         self.oth_cat = oth_catalogue.get_events(starttime=t_start, endtime=t_end)
-
 
         # create empty data frame
         self.isc_df = pd.DataFrame(data=None, columns=['isc_ind', 'event_id', 'qtime', 'lat', 'lon', 'depth', 'mag'])
@@ -539,12 +556,12 @@ class MainWindow(QtGui.QWidget):
             global length_oth_df
             print "\r     Matching event from Local Cat", match_index, ' of ', length_oth_df, ' ....',
             sys.stdout.flush()
-            temp = self.isc_df_drop.apply(lambda x: abs(x - row), axis=1) #Pandas DF
+            temp = self.isc_df_drop.apply(lambda x: abs(x - row), axis=1)  # Pandas DF
             # NaNs are treated as small
-            smallest_temp = temp.nsmallest(2, columns=['lat', 'lon', 'qtime']).iloc[0] # Pandas Series
+            smallest_temp = temp.nsmallest(2, columns=['lat', 'lon', 'qtime']).iloc[0]  # Pandas Series
 
-            distance_diff = degrees2kilometers(math.sqrt(abs(smallest_temp['lat'])**2 +
-                                                         abs(smallest_temp['lon'])**2))
+            distance_diff = degrees2kilometers(math.sqrt(abs(smallest_temp['lat']) ** 2 +
+                                                         abs(smallest_temp['lon']) ** 2))
 
             isc_index = smallest_temp.name
 
@@ -557,7 +574,8 @@ class MainWindow(QtGui.QWidget):
                                    self.isc_df.loc[isc_index, 'depth'], self.isc_df.loc[isc_index, 'mag'],
                                    smallest_temp['qtime'], distance_diff, smallest_temp['depth'], smallest_temp['mag']],
                                   index=['isc_ind', 'event_id_match', 'qtime_match', 'lat_match', 'lon_match',
-                                         'depth_match', 'mag_match', 'qtime_diff', 'dist_diff', 'depth_diff', 'mag_diff'])
+                                         'depth_match', 'mag_match', 'qtime_diff', 'dist_diff', 'depth_diff',
+                                         'mag_diff'])
             else:
                 ret_s = pd.Series([None, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
                                   index=['isc_ind', 'event_id_match', 'qtime_match', 'lat_match', 'lon_match',
@@ -572,7 +590,7 @@ class MainWindow(QtGui.QWidget):
         self.isc_df_drop = self.isc_df.drop('event_id', axis=1)
         self.matched_df = pd.concat((self.oth_df, self.oth_df_drop.apply(get_isc_match, axis=1)), axis=1)
 
-        #drop a row from the matched df if isc_ind in matched df is NaN
+        # drop a row from the matched df if isc_ind in matched df is NaN
         # (I.e. there was no matching earthquake in isc cat)
         self.matched_df.dropna(subset=['isc_ind'], inplace=True)
         self.matched_df.reset_index(drop=True, inplace=True)
@@ -580,7 +598,6 @@ class MainWindow(QtGui.QWidget):
         # find isc events not matched and oth events not matched
         self.isc_not_matched_df = self.isc_df[~self.isc_df['isc_ind'].isin(self.matched_df['isc_ind'])]
         self.oth_not_matched_df = self.oth_df[~self.oth_df['oth_ind'].isin(self.matched_df['oth_ind'])]
-
 
 
 if __name__ == '__main__':
