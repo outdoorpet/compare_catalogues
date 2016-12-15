@@ -221,7 +221,7 @@ class MainWindow(QtGui.QWidget):
     def update_graph(self):
         self.graph_view.clear()
 
-        matched_df_drop_mdna = self.matched_df.dropna(subset=['mag', 'depth'], inplace=False)
+        matched_df_drop_mdna = self.matched_df.dropna(subset=['mag_match', 'depth_match'], inplace=False)
 
         self.plot2 = self.graph_view.addPlot(0, 0, title="Magnitude Difference",
                                              axisItems={'bottom': DateAxisItem(orientation='bottom',
