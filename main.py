@@ -10,6 +10,42 @@ import numpy as np
 from DateAxisItem import DateAxisItem
 import math
 
+from glob import iglob
+import imp
+import inspect
+import os
+import time
+
+
+def compile_and_import_ui_files():
+    """
+    Automatically compiles all .ui files found in the same directory as the
+    application py file.
+    They will have the same name as the .ui files just with a .py extension.
+
+    Needs to be defined in the same file as function loading the gui as it
+    modifies the globals to be able to automatically import the created py-ui
+    files. Its just very convenient.
+    """
+    directory = os.path.dirname(os.path.abspath(
+        inspect.getfile(inspect.currentframe())))
+    for filename in iglob(os.path.join(directory, '*.ui')):
+        ui_file = filename
+        py_ui_file = os.path.splitext(ui_file)[0] + os.path.extsep + 'py'
+        if not os.path.exists(py_ui_file) or \
+                (os.path.getmtime(ui_file) >= os.path.getmtime(py_ui_file)):
+            from PyQt4 import uic
+            print("Compiling ui file: %s" % ui_file)
+            with open(py_ui_file, 'w') as open_file:
+                uic.compileUi(ui_file, open_file)
+        # Import the (compiled) file.
+        try:
+            import_name = os.path.splitext(os.path.basename(py_ui_file))[0]
+            globals()[import_name] = imp.load_source(import_name, py_ui_file)
+        except ImportError as e:
+            print("Error importing %s" % py_ui_file)
+            print(e.message)
+
 
 class PandasModel(QtCore.QAbstractTableModel):
     """
@@ -132,6 +168,41 @@ class TableDialog(QtGui.QDialog):
         self.show()
 
 
+class TaskThread(QtCore.QThread):
+    taskFinished = QtCore.pyqtSignal()
+    def run(self):
+        time.sleep(3)
+        self.taskFinished.emit()
+
+
+class SelectionDialog(QtGui.QDialog):
+    """
+    Pop-up window to select the desired earthquake catalogues and start time/end time for comparison
+    """
+    def __init__(self, parent=None):
+        super(SelectionDialog, self).__init__(parent)
+        # Injected by the compile_and_import_ui_files() function.
+        self.selui = select_cat_time.Ui_SelectionDialog()
+        self.selui.setupUi(self)
+
+        self.selui.int_cat_input.clearFocus()
+        self.selui.starttime.setFocus()
+
+    def getValues(self):
+        int_cat_return = str(self.selui.int_cat_input.text())
+        oth_cat_return = str(self.selui.oth_cat_input.text())
+
+        # Return the placeholder text as default if nothing is set
+        if int_cat_return == '':
+            int_cat_return = str(self.selui.int_cat_input.placeholderText())
+        if oth_cat_return == '':
+            oth_cat_return = str(self.selui.oth_cat_input.placeholderText())
+
+        return (int_cat_return, oth_cat_return,
+                UTCDateTime(self.selui.starttime.dateTime().toPyDateTime()),
+                UTCDateTime(self.selui.endtime.dateTime().toPyDateTime()))
+
+
 class MainWindow(QtGui.QWidget):
     """
     Main Window for compare_catalogues GUI
@@ -142,10 +213,15 @@ class MainWindow(QtGui.QWidget):
         self.setupUi()
         self.show()
         self.raise_()
-        QtGui.QApplication.instance().focusChanged.connect(self.changed_widget_focus)
+
+        # Open the selection dialog to select earthquake catalogue server and start time/end time
+        sel_dlg = SelectionDialog(parent=self)
+        if sel_dlg.exec_():
+            self.sel_dlg_ret = sel_dlg.getValues()
 
         self.get_catalogues()
 
+        QtGui.QApplication.instance().focusChanged.connect(self.changed_widget_focus)
         self.setAttribute(QtCore.Qt.WA_DeleteOnClose)
 
     def setupUi(self):
@@ -206,11 +282,12 @@ class MainWindow(QtGui.QWidget):
             pass
 
     def get_catalogues(self):
-        isc_catalogue = Client("http://isc-mirror.iris.washington.edu")
-        oth_catalogue = Client('http://sismo.iag.usp.br')
 
-        t_start = UTCDateTime('2016-12-01T00:00:00')
-        t_end = UTCDateTime('2016-12-02T00:00:00')
+        isc_catalogue = Client(self.sel_dlg_ret[0])
+        oth_catalogue = Client(self.sel_dlg_ret[1])
+
+        t_start = self.sel_dlg_ret[2]
+        t_end = self.sel_dlg_ret[3]
 
         print('\nRequesting Earthquake Catalogues from Remote Servers.....')
 
@@ -266,6 +343,8 @@ class MainWindow(QtGui.QWidget):
         # =====================Finding matching events =======================
 
         print('\nFinding Matching Events.....')
+        progressDialog = QtGui.QProgressDialog("Finding Matching Events",
+                                               "Cancel", 0, len(self.oth_df))
 
         global match_index
         global length_oth_df
@@ -275,6 +354,7 @@ class MainWindow(QtGui.QWidget):
         def get_isc_match(row):
             global match_index
             global length_oth_df
+            progressDialog.setValue(match_index)
             print "\r     Matching event from Local Cat", match_index, ' of ', length_oth_df, ' ....',
             sys.stdout.flush()
             temp = self.isc_df_drop.apply(lambda x: abs(x - row), axis=1)  # Pandas DF
@@ -617,6 +697,9 @@ if __name__ == '__main__':
     # port = raw_input("Proxy Port:")
     # networkProxy = QtNetwork.QNetworkProxy(QtNetwork.QNetworkProxy.HttpProxy, proxy, int(port))
     # QtNetwork.QNetworkProxy.setApplicationProxy(networkProxy)
+
+    # Automatically compile all ui files if they have been changed.
+    compile_and_import_ui_files()
 
     app = QtGui.QApplication([])
     app.setStyleSheet(qdarkstyle.load_stylesheet(pyside=False))
