@@ -15,8 +15,3 @@ GUI (written with PyQt) for comparing event catalogues from different sources (v
 * `obspy`
 * `pandas`
 * `numpy`
-
-Currently the User must edit the code in lines 209-213 to specify the 
-desired earthquake catalogues to compare and the start and end date/times for the comparison.
-
-This will be built into the GUI in the future.
